@@ -1,0 +1,50 @@
+name: Test custom installation directory
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create custom install directory
+        run: mkdir -p /tmp/wp-custom-test
+      - id: action
+        uses: .
+        with:
+          dir: /tmp/wp-custom-test
+          db_user: wordpress
+          db_password: wordpress
+          db_name: wordpress_test
+          db_host: 127.0.0.1
+      - name: Assert wp_version output is set
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if [ -z "$WP_VERSION" ]; then
+            echo "FAIL: wp_version output is empty"
+            exit 1
+          fi
+          echo "PASS: wp_version=$WP_VERSION"
+      - name: Assert WordPress files exist in custom directory
+        run: |
+          if [ ! -d "/tmp/wp-custom-test/wordpress" ]; then
+            echo "FAIL: WordPress directory not found in custom install dir"
+            exit 1
+          fi
+          echo "PASS: WordPress directory found at /tmp/wp-custom-test/wordpress"
