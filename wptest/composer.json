@@ -1,0 +1,11 @@
+{
+    "require-dev": {
+        "yoast/phpunit-polyfills": "^3.0"
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.0.27"
+        }
+    }
+}

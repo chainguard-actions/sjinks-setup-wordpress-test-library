@@ -1,0 +1,59 @@
+name: Test specific WordPress version
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          version: '6.4'
+          db_user: 'wordpress'
+          db_password: 'wordpress'
+          db_name: 'wordpress_test'
+          db_host: '127.0.0.1'
+          dir: '/tmp'
+      - name: Assert wp_version output is set
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if [ -z "$WP_VERSION" ]; then
+            echo "FAIL: wp_version output is empty"
+            exit 1
+          fi
+          echo "PASS: wp_version=$WP_VERSION"
+      - name: Assert WordPress version matches requested
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if [[ "$WP_VERSION" != 6.4* ]]; then
+            echo "FAIL: expected version starting with 6.4, got $WP_VERSION"
+            exit 1
+          fi
+          echo "PASS: version $WP_VERSION starts with 6.4"
+      - name: Assert WordPress files exist
+        run: |
+          if [ ! -d "/tmp/wordpress" ]; then
+            echo "FAIL: /tmp/wordpress directory not found"
+            exit 1
+          fi
+          echo "PASS: WordPress directory exists"
