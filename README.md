@@ -8,6 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
+| v2.1.2 | [`v2.1.2`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/tree/v2.1.2) | [`c392a93`](https://github.com/sjinks/setup-wordpress-test-library/commit/c392a937cb59eee8669e2b97d577f044f4b0bf01) |
 | v2.1.4 | [`v2.1.4`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/tree/v2.1.4) | [`d32f6be`](https://github.com/sjinks/setup-wordpress-test-library/commit/d32f6be78ebd062aa55c4ca2e82c7a8ec7b3cbb7) |
 
 ## Privacy
