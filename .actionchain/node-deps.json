@@ -1,0 +1,13 @@
+{
+  "status": "self_contained",
+  "entries": [
+    {
+      "path": "dist/setup/index.mjs",
+      "status": "self_contained"
+    },
+    {
+      "path": "dist/post/index.mjs",
+      "status": "self_contained"
+    }
+  ]
+}
