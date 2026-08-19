@@ -1,0 +1,49 @@
+name: Test branch version resolution (e.g. 6.4.x)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create target directory
+        run: mkdir -p /tmp/wp-test-branch
+
+      - id: action
+        uses: .
+        with:
+          version: '6.4.x'
+          dir: '/tmp/wp-test-branch'
+
+      - name: Assert wp_version output is a 6.4.x version
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if [ -z "$WP_VERSION" ]; then
+            echo "FAIL: wp_version output is empty"
+            exit 1
+          fi
+          # Should resolve to a concrete 6.4.x version (e.g. 6.4.2)
+          if ! echo "$WP_VERSION" | grep -qE '^6\.4\.[0-9]+$'; then
+            echo "FAIL: expected a 6.4.x version but got '$WP_VERSION'"
+            exit 1
+          fi
+          echo "PASS: wp_version=$WP_VERSION is a valid 6.4.x version"
+
+      - name: Assert WordPress directory exists
+        run: |
+          if [ ! -d "/tmp/wp-test-branch/wordpress" ]; then
+            echo "FAIL: WordPress directory not found at /tmp/wp-test-branch/wordpress"
+            exit 1
+          fi
+          echo "PASS: WordPress directory exists"
+
+      - name: Assert WordPress test library directory exists
+        run: |
+          if [ ! -d "/tmp/wp-test-branch/wordpress-tests-lib" ]; then
+            echo "FAIL: WordPress test library directory not found"
+            exit 1
+          fi
+          echo "PASS: WordPress test library directory exists"

@@ -1,0 +1,101 @@
+name: Integration Testing
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Integration testing
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mariadb:latest
+        ports:
+          - '3306:3306'
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MARIADB_INITDB_SKIP_TZINFO: 1
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: wordpress_test
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            api.wordpress.org:80
+            archive.ubuntu.com:80
+            azure.archive.ubuntu.com:80
+            cdn.fwupd.org:443
+            develop.svn.wordpress.org:443
+            dl.cloudsmith.io:443
+            esm.ubuntu.com:443
+            esm.ubuntu.com:80
+            github.com:443
+            motd.ubuntu.com:80
+            objects.githubusercontent.com:443
+            packages.microsoft.com:443
+            packages.microsoft.com:80
+            packagist.org:443
+            plugins.svn.wordpress.org:443
+            ppa.launchpad.net:80
+            ppa.launchpadcontent.net:80
+            release-assets.githubusercontent.com:443
+            security.ubuntu.com:80
+            setup-php.com:443
+            wordpress.org:443
+
+      - name: Install subversion
+        run: sudo apt-get update && sudo apt-get -y install subversion
+
+      - name: Check out the source code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        with:
+          coverage: none
+          php-version: "8.3"
+
+      - name: Install PHP Dependencies
+        uses: ramsey/composer-install@3cf229dc2919194e9e36783941438d17239e8520 # 3.1.1
+        with:
+          working-directory: wptest
+
+      - name: Set up WordPress and WordPress Test Library
+        uses: ./
+        with:
+          version: latest
+
+      - name: Verify MariaDB connection
+        env:
+          MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
+        run: |
+          while ! mysqladmin ping -h 127.0.0.1 -P "$MYSQL_PORT" --silent; do
+            sleep 1
+          done
+        timeout-minutes: 1
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+        working-directory: wptest
+
+      - name: Set up WordPress and WordPress Test Library (from the tool cache)
+        uses: ./
+        with:
+          version: latest
+
+      - name: Rerun tests
+        run: vendor/bin/phpunit
+        working-directory: wptest
