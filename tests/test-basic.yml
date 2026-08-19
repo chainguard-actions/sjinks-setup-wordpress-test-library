@@ -1,33 +1,30 @@
-name: Test basic usage (default inputs)
+name: Test basic usage (latest WordPress)
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress_test
-          MYSQL_USER: wordpress
-          MYSQL_PASSWORD: wordpress
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install subversion
+        run: sudo apt-get install -y subversion
+
+      - name: Create target directory
+        run: mkdir -p /tmp/wp-test-basic
+
       - id: action
         uses: .
         with:
+          version: latest
+          dir: /tmp/wp-test-basic
           db_user: wordpress
           db_password: wordpress
           db_name: wordpress_test
           db_host: 127.0.0.1
+
       - name: Assert wp_version output is set
         env:
           WP_VERSION: ${{ steps.action.outputs.wp_version }}
@@ -37,4 +34,61 @@ jobs:
             echo "FAIL: wp_version output is empty"
             exit 1
           fi
-          echo "PASS: wp_version=$WP_VERSION"
+          echo "PASS: wp_version is set to $WP_VERSION"
+
+      - name: Assert wp_version looks like a version number
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if ! echo "$WP_VERSION" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "FAIL: wp_version '$WP_VERSION' does not look like a version number"
+            exit 1
+          fi
+          echo "PASS: wp_version looks like a valid version number"
+
+      - name: Assert WordPress directory exists
+        run: |
+          if [ ! -d /tmp/wp-test-basic/wordpress ]; then
+            echo "FAIL: WordPress directory not found at /tmp/wp-test-basic/wordpress"
+            exit 1
+          fi
+          echo "PASS: WordPress directory exists"
+
+      - name: Assert WordPress test library directory exists
+        run: |
+          if [ ! -d /tmp/wp-test-basic/wordpress-tests-lib ]; then
+            echo "FAIL: WordPress test library directory not found at /tmp/wp-test-basic/wordpress-tests-lib"
+            exit 1
+          fi
+          echo "PASS: WordPress test library directory exists"
+
+      - name: Assert wp-tests-config.php was created
+        run: |
+          if [ ! -f /tmp/wp-test-basic/wordpress-tests-lib/wp-tests-config.php ]; then
+            echo "FAIL: wp-tests-config.php not found"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php exists"
+
+      - name: Assert WP_TESTS_DIR env var is set
+        run: |
+          echo "WP_TESTS_DIR: $WP_TESTS_DIR"
+          if [ -z "$WP_TESTS_DIR" ]; then
+            echo "FAIL: WP_TESTS_DIR environment variable is not set"
+            exit 1
+          fi
+          echo "PASS: WP_TESTS_DIR is set to $WP_TESTS_DIR"
+
+      - name: Assert wp-tests-config.php contains correct db settings
+        run: |
+          CONFIG=/tmp/wp-test-basic/wordpress-tests-lib/wp-tests-config.php
+          if ! grep -q 'wordpress_test' "$CONFIG"; then
+            echo "FAIL: db_name 'wordpress_test' not found in wp-tests-config.php"
+            exit 1
+          fi
+          if ! grep -q 'wordpress' "$CONFIG"; then
+            echo "FAIL: db_user 'wordpress' not found in wp-tests-config.php"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php contains correct database settings"

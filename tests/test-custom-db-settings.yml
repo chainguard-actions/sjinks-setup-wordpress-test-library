@@ -1,0 +1,74 @@
+name: Test custom database settings
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install subversion
+        run: sudo apt-get install -y subversion
+
+      - name: Create target directory
+        run: mkdir -p /tmp/wp-test-customdb
+
+      - id: action
+        uses: .
+        with:
+          version: '6.4.3'
+          dir: /tmp/wp-test-customdb
+          db_user: myuser
+          db_password: mypassword
+          db_name: mydb
+          db_host: 127.0.0.1
+
+      - name: Assert wp_version output is set
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if [ -z "$WP_VERSION" ]; then
+            echo "FAIL: wp_version output is empty"
+            exit 1
+          fi
+          echo "PASS: wp_version is set to $WP_VERSION"
+
+      - name: Assert wp-tests-config.php contains custom db_name
+        run: |
+          CONFIG=/tmp/wp-test-customdb/wordpress-tests-lib/wp-tests-config.php
+          if ! grep -q 'mydb' "$CONFIG"; then
+            echo "FAIL: custom db_name 'mydb' not found in wp-tests-config.php"
+            cat "$CONFIG" | head -20 || true
+            exit 1
+          fi
+          echo "PASS: custom db_name 'mydb' found in wp-tests-config.php"
+
+      - name: Assert wp-tests-config.php contains custom db_user
+        run: |
+          CONFIG=/tmp/wp-test-customdb/wordpress-tests-lib/wp-tests-config.php
+          if ! grep -q 'myuser' "$CONFIG"; then
+            echo "FAIL: custom db_user 'myuser' not found in wp-tests-config.php"
+            exit 1
+          fi
+          echo "PASS: custom db_user 'myuser' found in wp-tests-config.php"
+
+      - name: Assert wp-tests-config.php contains custom db_password
+        run: |
+          CONFIG=/tmp/wp-test-customdb/wordpress-tests-lib/wp-tests-config.php
+          if ! grep -q 'mypassword' "$CONFIG"; then
+            echo "FAIL: custom db_password 'mypassword' not found in wp-tests-config.php"
+            exit 1
+          fi
+          echo "PASS: custom db_password 'mypassword' found in wp-tests-config.php"
+
+      - name: Assert wp-tests-config.php contains custom db_host
+        run: |
+          CONFIG=/tmp/wp-test-customdb/wordpress-tests-lib/wp-tests-config.php
+          if ! grep -q '127.0.0.1' "$CONFIG"; then
+            echo "FAIL: custom db_host '127.0.0.1' not found in wp-tests-config.php"
+            exit 1
+          fi
+          echo "PASS: custom db_host '127.0.0.1' found in wp-tests-config.php"

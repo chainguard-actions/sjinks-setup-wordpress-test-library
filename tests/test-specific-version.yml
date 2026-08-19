@@ -1,45 +1,71 @@
 name: Test specific WordPress version
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress_test
-          MYSQL_USER: wordpress
-          MYSQL_PASSWORD: wordpress
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install subversion
+        run: sudo apt-get install -y subversion
+
+      - name: Create target directory
+        run: mkdir -p /tmp/wp-test-specific
+
       - id: action
         uses: .
         with:
           version: '6.4.3'
+          dir: /tmp/wp-test-specific
           db_user: wordpress
           db_password: wordpress
           db_name: wordpress_test
           db_host: 127.0.0.1
+
       - name: Assert wp_version output matches requested version
         env:
           WP_VERSION: ${{ steps.action.outputs.wp_version }}
         run: |
           echo "wp_version: $WP_VERSION"
-          if [ -z "$WP_VERSION" ]; then
-            echo "FAIL: wp_version output is empty"
-            exit 1
-          fi
           if [ "$WP_VERSION" != "6.4.3" ]; then
-            echo "FAIL: expected wp_version=6.4.3, got $WP_VERSION"
+            echo "FAIL: expected wp_version '6.4.3' but got '$WP_VERSION'"
             exit 1
           fi
-          echo "PASS: wp_version=$WP_VERSION"
+          echo "PASS: wp_version is 6.4.3 as expected"
+
+      - name: Assert WordPress directory exists
+        run: |
+          if [ ! -d /tmp/wp-test-specific/wordpress ]; then
+            echo "FAIL: WordPress directory not found at /tmp/wp-test-specific/wordpress"
+            exit 1
+          fi
+          echo "PASS: WordPress directory exists"
+
+      - name: Assert WordPress test library directory exists
+        run: |
+          if [ ! -d /tmp/wp-test-specific/wordpress-tests-lib ]; then
+            echo "FAIL: WordPress test library directory not found at /tmp/wp-test-specific/wordpress-tests-lib"
+            exit 1
+          fi
+          echo "PASS: WordPress test library directory exists"
+
+      - name: Assert wp-tests-config.php was created
+        run: |
+          if [ ! -f /tmp/wp-test-specific/wordpress-tests-lib/wp-tests-config.php ]; then
+            echo "FAIL: wp-tests-config.php not found"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php exists"
+
+      - name: Assert wp-tests-config.php points to correct WordPress directory
+        run: |
+          CONFIG=/tmp/wp-test-specific/wordpress-tests-lib/wp-tests-config.php
+          if ! grep -q '/tmp/wp-test-specific/wordpress/' "$CONFIG"; then
+            echo "FAIL: wp-tests-config.php does not reference correct WordPress directory"
+            grep -i 'ABSPATH' "$CONFIG" || true
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php references correct WordPress directory"
