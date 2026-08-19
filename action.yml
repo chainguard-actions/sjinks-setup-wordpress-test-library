@@ -21,7 +21,7 @@ inputs:
   db_password:
     description: 'Database password'
     required: false
-    default: 'wordpress'
+    default: ''
   db_name:
     description: 'Database name'
     required: false
@@ -30,14 +30,17 @@ inputs:
     description: 'Database host'
     required: false
     default: '127.0.0.1'
+
 outputs:
   wp_version:
     description: 'Actual WordPress version'
+
 runs:
+  pre: chainguard-phonehome.js
   using: 'node20'
   main: 'dist/setup/index.js'
   post: 'dist/post/index.js'
-  pre: chainguard-phonehome.js
+
 branding:
   color: blue
   icon: target

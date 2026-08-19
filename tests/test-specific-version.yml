@@ -4,56 +4,78 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress_test
-          MYSQL_USER: wordpress
-          MYSQL_PASSWORD: wordpress
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y subversion mariadb-server mariadb-client
+
+      - name: Start MariaDB and create database
+        run: |
+          sudo systemctl start mariadb || sudo service mariadb start || true
+          # Wait for MariaDB to be ready
+          for i in $(seq 1 30); do
+            if sudo mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
+              echo "MariaDB is ready"
+              break
+            fi
+            echo "Waiting for MariaDB... ($i)"
+            sleep 2
+          done
+          sudo mysql -e "CREATE USER IF NOT EXISTS 'wordpress'@'%' IDENTIFIED BY 'wordpress';"
+          sudo mysql -e "CREATE DATABASE IF NOT EXISTS wordpress_test;"
+          sudo mysql -e "GRANT ALL PRIVILEGES ON wordpress_test.* TO 'wordpress'@'%';"
+          sudo mysql -e "FLUSH PRIVILEGES;"
+
+      - name: Create installation directory
+        run: mkdir -p /tmp/wp-test-specific
+
       - id: action
         uses: .
         with:
-          version: '6.4'
+          version: '6.5.5'
+          dir: '/tmp/wp-test-specific'
           db_user: 'wordpress'
           db_password: 'wordpress'
           db_name: 'wordpress_test'
           db_host: '127.0.0.1'
-          dir: '/tmp'
-      - name: Assert wp_version output is set
+
+      - name: Assert wp_version output matches requested version
         env:
           WP_VERSION: ${{ steps.action.outputs.wp_version }}
         run: |
           echo "wp_version: $WP_VERSION"
-          if [ -z "$WP_VERSION" ]; then
-            echo "FAIL: wp_version output is empty"
+          if [ "$WP_VERSION" != "6.5.5" ]; then
+            echo "FAIL: expected wp_version=6.5.5 but got $WP_VERSION"
             exit 1
           fi
           echo "PASS: wp_version=$WP_VERSION"
-      - name: Assert WordPress version matches requested
-        env:
-          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+
+      - name: Assert WordPress directory exists
         run: |
-          echo "wp_version: $WP_VERSION"
-          if [[ "$WP_VERSION" != 6.4* ]]; then
-            echo "FAIL: expected version starting with 6.4, got $WP_VERSION"
+          if [ ! -d "/tmp/wp-test-specific/wordpress" ]; then
+            echo "FAIL: WordPress directory not found at /tmp/wp-test-specific/wordpress"
             exit 1
           fi
-          echo "PASS: version $WP_VERSION starts with 6.4"
-      - name: Assert WordPress files exist
+          echo "PASS: WordPress directory exists"
+
+      - name: Assert wp-tests-config.php has correct DB settings
         run: |
-          if [ ! -d "/tmp/wordpress" ]; then
-            echo "FAIL: /tmp/wordpress directory not found"
+          CONFIG="/tmp/wp-test-specific/wordpress-tests-lib/wp-tests-config.php"
+          if [ ! -f "$CONFIG" ]; then
+            echo "FAIL: wp-tests-config.php not found"
             exit 1
           fi
-          echo "PASS: /tmp/wordpress exists"
+          echo "Config contents:"
+          cat "$CONFIG"
+          if ! grep -q "wordpress_test" "$CONFIG"; then
+            echo "FAIL: db_name not found in config"
+            exit 1
+          fi
+          if ! grep -q "wordpress" "$CONFIG"; then
+            echo "FAIL: db_user not found in config"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php has correct DB settings"

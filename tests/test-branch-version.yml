@@ -1,4 +1,4 @@
-name: Test basic usage (latest WordPress)
+name: Test branch version format (x.y.x)
 on:
   workflow_dispatch:
 jobs:
@@ -30,19 +30,19 @@ jobs:
           sudo mysql -e "FLUSH PRIVILEGES;"
 
       - name: Create installation directory
-        run: mkdir -p /tmp/wp-test-basic
+        run: mkdir -p /tmp/wp-test-branch
 
       - id: action
         uses: .
         with:
-          version: 'latest'
-          dir: '/tmp/wp-test-basic'
+          version: '6.5.x'
+          dir: '/tmp/wp-test-branch'
           db_user: 'wordpress'
           db_password: 'wordpress'
           db_name: 'wordpress_test'
           db_host: '127.0.0.1'
 
-      - name: Assert wp_version output is set
+      - name: Assert wp_version output starts with 6.5
         env:
           WP_VERSION: ${{ steps.action.outputs.wp_version }}
         run: |
@@ -51,35 +51,25 @@ jobs:
             echo "FAIL: wp_version output is empty"
             exit 1
           fi
-          echo "PASS: wp_version=$WP_VERSION"
-
-      - name: Assert WP_TESTS_DIR env var is set
-        run: |
-          echo "WP_TESTS_DIR: $WP_TESTS_DIR"
-          if [ -z "$WP_TESTS_DIR" ]; then
-            echo "FAIL: WP_TESTS_DIR env var is not set"
+          if ! echo "$WP_VERSION" | grep -qE '^6\.5'; then
+            echo "FAIL: expected wp_version to start with 6.5 but got $WP_VERSION"
             exit 1
           fi
-          echo "PASS: WP_TESTS_DIR=$WP_TESTS_DIR"
+          echo "PASS: wp_version=$WP_VERSION starts with 6.5"
 
-      - name: Assert WordPress files exist
+      - name: Assert WordPress Test Library directory exists
         run: |
-          echo "Checking WordPress directory at /tmp/wp-test-basic/wordpress"
-          if [ ! -d "/tmp/wp-test-basic/wordpress" ]; then
-            echo "FAIL: WordPress directory not found"
-            exit 1
-          fi
-          echo "PASS: WordPress directory exists"
-
-      - name: Assert WordPress Test Library files exist
-        run: |
-          echo "Checking WordPress Test Library at /tmp/wp-test-basic/wordpress-tests-lib"
-          if [ ! -d "/tmp/wp-test-basic/wordpress-tests-lib" ]; then
+          if [ ! -d "/tmp/wp-test-branch/wordpress-tests-lib" ]; then
             echo "FAIL: WordPress Test Library directory not found"
             exit 1
           fi
-          if [ ! -f "/tmp/wp-test-basic/wordpress-tests-lib/wp-tests-config.php" ]; then
-            echo "FAIL: wp-tests-config.php not found"
+          echo "PASS: WordPress Test Library directory exists"
+
+      - name: Assert WP_TESTS_DIR env var points to correct directory
+        run: |
+          echo "WP_TESTS_DIR: $WP_TESTS_DIR"
+          if [ "$WP_TESTS_DIR" != "/tmp/wp-test-branch/wordpress-tests-lib" ]; then
+            echo "FAIL: expected WP_TESTS_DIR=/tmp/wp-test-branch/wordpress-tests-lib but got $WP_TESTS_DIR"
             exit 1
           fi
-          echo "PASS: WordPress Test Library exists with config"
+          echo "PASS: WP_TESTS_DIR is correct"

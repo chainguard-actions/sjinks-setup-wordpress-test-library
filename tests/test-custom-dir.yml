@@ -1,37 +1,48 @@
-name: Test custom directory and database credentials
+name: Test custom installation directory
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: custom_wp_test
-          MYSQL_USER: wpuser
-          MYSQL_PASSWORD: wppass
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Create custom install directory
-        run: mkdir -p /tmp/wp-custom
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y subversion mariadb-server mariadb-client
+
+      - name: Start MariaDB and create database
+        run: |
+          sudo systemctl start mariadb || sudo service mariadb start || true
+          # Wait for MariaDB to be ready
+          for i in $(seq 1 30); do
+            if sudo mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
+              echo "MariaDB is ready"
+              break
+            fi
+            echo "Waiting for MariaDB... ($i)"
+            sleep 2
+          done
+          sudo mysql -e "CREATE USER IF NOT EXISTS 'wpuser'@'%' IDENTIFIED BY 'wppass';"
+          sudo mysql -e "CREATE DATABASE IF NOT EXISTS wp_custom_test;"
+          sudo mysql -e "GRANT ALL PRIVILEGES ON wp_custom_test.* TO 'wpuser'@'%';"
+          sudo mysql -e "FLUSH PRIVILEGES;"
+
+      - name: Create custom installation directory
+        run: mkdir -p /tmp/custom-wp-dir
+
       - id: action
         uses: .
         with:
-          version: 'latest'
+          version: '6.5.5'
+          dir: '/tmp/custom-wp-dir'
           db_user: 'wpuser'
           db_password: 'wppass'
-          db_name: 'custom_wp_test'
+          db_name: 'wp_custom_test'
           db_host: '127.0.0.1'
-          dir: '/tmp/wp-custom'
+          cache_prefix: 'myprefix'
+
       - name: Assert wp_version output is set
         env:
           WP_VERSION: ${{ steps.action.outputs.wp_version }}
@@ -42,17 +53,36 @@ jobs:
             exit 1
           fi
           echo "PASS: wp_version=$WP_VERSION"
+
       - name: Assert WordPress installed in custom directory
         run: |
-          if [ ! -d "/tmp/wp-custom/wordpress" ]; then
-            echo "FAIL: /tmp/wp-custom/wordpress directory not found"
+          if [ ! -d "/tmp/custom-wp-dir/wordpress" ]; then
+            echo "FAIL: WordPress not found in custom directory /tmp/custom-wp-dir/wordpress"
             exit 1
           fi
-          echo "PASS: /tmp/wp-custom/wordpress exists"
-      - name: Assert WordPress test library installed in custom directory
+          echo "PASS: WordPress installed in custom directory"
+
+      - name: Assert WordPress Test Library installed in custom directory
         run: |
-          if [ ! -d "/tmp/wp-custom/wordpress-tests-lib" ]; then
-            echo "FAIL: /tmp/wp-custom/wordpress-tests-lib directory not found"
+          if [ ! -d "/tmp/custom-wp-dir/wordpress-tests-lib" ]; then
+            echo "FAIL: WordPress Test Library not found in custom directory"
             exit 1
           fi
-          echo "PASS: /tmp/wp-custom/wordpress-tests-lib exists"
+          echo "PASS: WordPress Test Library installed in custom directory"
+
+      - name: Assert wp-tests-config.php has custom DB settings
+        run: |
+          CONFIG="/tmp/custom-wp-dir/wordpress-tests-lib/wp-tests-config.php"
+          if [ ! -f "$CONFIG" ]; then
+            echo "FAIL: wp-tests-config.php not found"
+            exit 1
+          fi
+          if ! grep -q "wp_custom_test" "$CONFIG"; then
+            echo "FAIL: custom db_name 'wp_custom_test' not found in config"
+            exit 1
+          fi
+          if ! grep -q "wpuser" "$CONFIG"; then
+            echo "FAIL: custom db_user 'wpuser' not found in config"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php has correct custom DB settings"
