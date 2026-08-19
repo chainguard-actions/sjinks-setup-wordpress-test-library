@@ -4,59 +4,66 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress_test
-          MYSQL_USER: wordpress
-          MYSQL_PASSWORD: wordpress
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install SVN
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y subversion
+
       - name: Create target directory
-        run: mkdir -p /tmp/wp-test-version
+        run: mkdir -p /tmp/wp-test-specific
+
       - id: action
         uses: .
         with:
           version: '6.4.3'
-          db_user: wordpress
-          db_password: wordpress
-          db_name: wordpress_test
-          db_host: 127.0.0.1
-          dir: /tmp/wp-test-version
+          dir: '/tmp/wp-test-specific'
+          db_user: 'testuser'
+          db_password: 'testpass'
+          db_name: 'testdb'
+          db_host: '127.0.0.1'
+
       - name: Assert wp_version output matches requested version
         env:
-          ACTUAL: ${{ steps.action.outputs.wp_version }}
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
         run: |
-          echo "actual wp_version: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: wp_version output is empty"
+          echo "wp_version: $WP_VERSION"
+          if [ "$WP_VERSION" != "6.4.3" ]; then
+            echo "FAIL: expected wp_version '6.4.3' but got '$WP_VERSION'"
             exit 1
           fi
-          if [ "$ACTUAL" != "6.4.3" ]; then
-            echo "FAIL: expected wp_version '6.4.3', got '$ACTUAL'"
-            exit 1
-          fi
-          echo "PASS: wp_version=$ACTUAL"
-      - name: Assert WordPress test library files exist
-        run: |
-          if [ ! -d "/tmp/wp-test-version/wordpress-tests-lib" ]; then
-            echo "FAIL: WordPress test library directory not found"
-            exit 1
-          fi
-          echo "PASS: WordPress test library directory exists"
+          echo "PASS: wp_version is 6.4.3"
+
       - name: Assert WordPress directory exists
         run: |
-          if [ ! -d "/tmp/wp-test-version/wordpress" ]; then
-            echo "FAIL: WordPress directory not found at /tmp/wp-test-version/wordpress"
+          WP_DIR="/tmp/wp-test-specific/wordpress"
+          if [ ! -d "$WP_DIR" ]; then
+            echo "FAIL: WordPress directory not found at $WP_DIR"
             exit 1
           fi
           echo "PASS: WordPress directory exists"
+
+      - name: Assert wp-tests-config.php contains correct db settings
+        run: |
+          CONFIG="/tmp/wp-test-specific/wordpress-tests-lib/wp-tests-config.php"
+          if [ ! -f "$CONFIG" ]; then
+            echo "FAIL: wp-tests-config.php not found"
+            exit 1
+          fi
+          echo "Config file contents:"
+          cat "$CONFIG"
+          if ! grep -q "testuser" "$CONFIG"; then
+            echo "FAIL: db_user 'testuser' not found in config"
+            exit 1
+          fi
+          if ! grep -q "testpass" "$CONFIG"; then
+            echo "FAIL: db_password 'testpass' not found in config"
+            exit 1
+          fi
+          if ! grep -q "testdb" "$CONFIG"; then
+            echo "FAIL: db_name 'testdb' not found in config"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php contains correct db settings"

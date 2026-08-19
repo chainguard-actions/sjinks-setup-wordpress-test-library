@@ -1,0 +1,55 @@
+name: Test branch WordPress version (x.y.x format)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install SVN
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y subversion
+
+      - name: Create target directory
+        run: mkdir -p /tmp/wp-test-branch
+
+      - id: action
+        uses: .
+        with:
+          version: '6.4.x'
+          dir: '/tmp/wp-test-branch'
+
+      - name: Assert wp_version output starts with '6.4'
+        env:
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "wp_version: $WP_VERSION"
+          if [ -z "$WP_VERSION" ]; then
+            echo "FAIL: wp_version output is empty"
+            exit 1
+          fi
+          if ! echo "$WP_VERSION" | grep -qE '^6\.4\.[0-9]+$'; then
+            echo "FAIL: expected wp_version to match '6.4.x' pattern but got '$WP_VERSION'"
+            exit 1
+          fi
+          echo "PASS: wp_version '$WP_VERSION' matches 6.4.x pattern"
+
+      - name: Assert WordPress directory exists
+        run: |
+          WP_DIR="/tmp/wp-test-branch/wordpress"
+          if [ ! -d "$WP_DIR" ]; then
+            echo "FAIL: WordPress directory not found at $WP_DIR"
+            exit 1
+          fi
+          echo "PASS: WordPress directory exists"
+
+      - name: Assert WP_TESTS_DIR env var is set
+        run: |
+          echo "WP_TESTS_DIR: $WP_TESTS_DIR"
+          if [ -z "$WP_TESTS_DIR" ]; then
+            echo "FAIL: WP_TESTS_DIR env var is not set"
+            exit 1
+          fi
+          echo "PASS: WP_TESTS_DIR=$WP_TESTS_DIR"

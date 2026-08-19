@@ -1,58 +1,72 @@
-name: Test basic usage (default inputs)
+name: Test basic usage (latest WordPress)
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress_test
-          MYSQL_USER: wordpress
-          MYSQL_PASSWORD: wordpress
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install SVN
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y subversion
+
       - name: Create target directory
         run: mkdir -p /tmp/wp-test-basic
+
       - id: action
         uses: .
         with:
-          version: latest
-          db_user: wordpress
-          db_password: wordpress
-          db_name: wordpress_test
-          db_host: 127.0.0.1
-          dir: /tmp/wp-test-basic
+          version: 'latest'
+          dir: '/tmp/wp-test-basic'
+
       - name: Assert wp_version output is set
         env:
-          ACTUAL: ${{ steps.action.outputs.wp_version }}
+          WP_VERSION: ${{ steps.action.outputs.wp_version }}
         run: |
-          echo "actual wp_version: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "wp_version: $WP_VERSION"
+          if [ -z "$WP_VERSION" ]; then
             echo "FAIL: wp_version output is empty"
             exit 1
           fi
-          echo "PASS: wp_version=$ACTUAL"
-      - name: Assert WordPress files exist
+          echo "PASS: wp_version is set to $WP_VERSION"
+
+      - name: Assert WP_TESTS_DIR env var is set
         run: |
-          if [ ! -d "/tmp/wp-test-basic/wordpress" ]; then
-            echo "FAIL: WordPress directory not found at /tmp/wp-test-basic/wordpress"
+          echo "WP_TESTS_DIR: $WP_TESTS_DIR"
+          if [ -z "$WP_TESTS_DIR" ]; then
+            echo "FAIL: WP_TESTS_DIR env var is not set"
+            exit 1
+          fi
+          echo "PASS: WP_TESTS_DIR=$WP_TESTS_DIR"
+
+      - name: Assert WordPress directory exists
+        run: |
+          WP_DIR="/tmp/wp-test-basic/wordpress"
+          echo "Checking $WP_DIR"
+          if [ ! -d "$WP_DIR" ]; then
+            echo "FAIL: WordPress directory not found at $WP_DIR"
             exit 1
           fi
           echo "PASS: WordPress directory exists"
-      - name: Assert WordPress test library files exist
+
+      - name: Assert WordPress test library directory exists
         run: |
-          if [ ! -d "/tmp/wp-test-basic/wordpress-tests-lib" ]; then
-            echo "FAIL: WordPress test library directory not found at /tmp/wp-test-basic/wordpress-tests-lib"
+          WPTL_DIR="/tmp/wp-test-basic/wordpress-tests-lib"
+          echo "Checking $WPTL_DIR"
+          if [ ! -d "$WPTL_DIR" ]; then
+            echo "FAIL: WordPress test library directory not found at $WPTL_DIR"
             exit 1
           fi
           echo "PASS: WordPress test library directory exists"
+
+      - name: Assert wp-tests-config.php was generated
+        run: |
+          CONFIG="/tmp/wp-test-basic/wordpress-tests-lib/wp-tests-config.php"
+          echo "Checking $CONFIG"
+          if [ ! -f "$CONFIG" ]; then
+            echo "FAIL: wp-tests-config.php not found at $CONFIG"
+            exit 1
+          fi
+          echo "PASS: wp-tests-config.php exists"
