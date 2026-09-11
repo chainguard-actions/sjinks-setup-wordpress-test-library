@@ -20,7 +20,7 @@ inputs:
     default: 'wordpress'
   db_password:
     description: 'Database password'
-    required: false
+    required: true
   db_name:
     description: 'Database name'
     required: false
@@ -35,7 +35,6 @@ outputs:
     description: 'Actual WordPress version'
 
 runs:
-  pre: chainguard-phonehome.js
   using: 'node20'
   main: 'dist/setup/index.js'
   post: 'dist/post/index.js'
