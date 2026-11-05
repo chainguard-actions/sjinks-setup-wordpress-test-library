@@ -1,0 +1,73 @@
+name: Test basic usage (latest)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install subversion and prepare dir
+        run: |
+          if ! command -v svn >/dev/null 2>&1; then
+            SUDO=""
+            if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != "0" ]; then SUDO=sudo; fi
+            $SUDO apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq subversion
+          fi
+          svn --version --quiet
+          mkdir -p /tmp/wp-basic
+      - id: action
+        uses: .
+        with:
+          dir: /tmp/wp-basic
+      - name: Assert wp_version is a semver
+        env:
+          ACTUAL: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "actual: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "FAIL: expected a version number"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert files installed and WP_TESTS_DIR exported
+        run: |
+          echo "WP_TESTS_DIR=$WP_TESTS_DIR"
+          if [ "$WP_TESTS_DIR" != "/tmp/wp-basic/wordpress-tests-lib" ]; then
+            echo "FAIL: unexpected WP_TESTS_DIR"
+            exit 1
+          fi
+          for f in /tmp/wp-basic/wordpress/wp-includes/version.php \
+                   /tmp/wp-basic/wordpress-tests-lib/wp-tests-config.php \
+                   /tmp/wp-basic/wordpress-tests-lib/wp-tests-config-sample.php \
+                   /tmp/wp-basic/wordpress-tests-lib/includes/bootstrap.php; do
+            if [ ! -f "$f" ]; then
+              echo "FAIL: missing $f"
+              exit 1
+            fi
+          done
+          if [ -e /tmp/wp-basic/wordpress.zip ]; then
+            echo "FAIL: wordpress.zip should have been removed"
+            exit 1
+          fi
+          if [ -d /tmp/wp-basic/wordpress-tests-lib/includes/.svn ]; then
+            echo "FAIL: .svn dir should have been removed"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert default config values
+        env:
+          VER: ${{ steps.action.outputs.wp_version }}
+        run: |
+          CFG=/tmp/wp-basic/wordpress-tests-lib/wp-tests-config.php
+          grep -E "DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|ABSPATH" "$CFG" || true
+          grep -q "'wordpress_test'" "$CFG" || { echo "FAIL: db_name"; exit 1; }
+          grep -qE "DB_USER.*'wordpress'" "$CFG" || { echo "FAIL: db_user"; exit 1; }
+          grep -qE "DB_PASSWORD.*'wordpress'" "$CFG" || { echo "FAIL: db_password"; exit 1; }
+          grep -qE "DB_HOST.*'127.0.0.1'" "$CFG" || { echo "FAIL: db_host"; exit 1; }
+          grep -q "'/tmp/wp-basic/wordpress/'" "$CFG" || { echo "FAIL: ABSPATH"; exit 1; }
+          if ! grep -q "\$wp_version = '$VER'" /tmp/wp-basic/wordpress/wp-includes/version.php; then
+            echo "FAIL: installed WordPress version does not match output $VER"
+            exit 1
+          fi
+          echo "PASS"

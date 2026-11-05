@@ -1,0 +1,51 @@
+name: Test explicit version with custom DB settings
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install subversion and prepare dir
+        run: |
+          if ! command -v svn >/dev/null 2>&1; then
+            SUDO=""
+            if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != "0" ]; then SUDO=sudo; fi
+            $SUDO apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq subversion
+          fi
+          mkdir -p /tmp/wp-explicit
+      - id: action
+        uses: .
+        with:
+          version: '6.4.3'
+          dir: /tmp/wp-explicit
+          cache_prefix: acttest
+          db_user: myuser
+          db_password: mysecret
+          db_name: mydb_test
+          db_host: db.example.local
+      - name: Assert wp_version output
+        env:
+          ACTUAL: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "6.4.3" ]; then
+            echo "FAIL: expected '6.4.3'"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert installed version and config
+        run: |
+          echo "WP_TESTS_DIR=$WP_TESTS_DIR"
+          [ "$WP_TESTS_DIR" = "/tmp/wp-explicit/wordpress-tests-lib" ] || { echo "FAIL: WP_TESTS_DIR"; exit 1; }
+          grep -q "\$wp_version = '6.4.3'" /tmp/wp-explicit/wordpress/wp-includes/version.php || { echo "FAIL: version.php"; exit 1; }
+          CFG=/tmp/wp-explicit/wordpress-tests-lib/wp-tests-config.php
+          grep -E "DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|ABSPATH" "$CFG" || true
+          grep -qE "DB_NAME.*'mydb_test'" "$CFG" || { echo "FAIL: db_name"; exit 1; }
+          grep -qE "DB_USER.*'myuser'" "$CFG" || { echo "FAIL: db_user"; exit 1; }
+          grep -qE "DB_PASSWORD.*'mysecret'" "$CFG" || { echo "FAIL: db_password"; exit 1; }
+          grep -qE "DB_HOST.*'db.example.local'" "$CFG" || { echo "FAIL: db_host"; exit 1; }
+          grep -q "'/tmp/wp-explicit/wordpress/'" "$CFG" || { echo "FAIL: ABSPATH"; exit 1; }
+          [ -f /tmp/wp-explicit/wordpress-tests-lib/includes/bootstrap.php ] || { echo "FAIL: bootstrap.php"; exit 1; }
+          echo "PASS"
