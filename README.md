@@ -14,6 +14,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v2.1.5 | [`v2.1.5`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/tree/v2.1.5) | [`2b1ad84`](https://github.com/sjinks/setup-wordpress-test-library/commit/2b1ad8408e173cec01cb22d53db8f855f0e36973) | [`HARDENING.md`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/blob/v2.1.5/HARDENING.md) |
 | v3.0.0 | [`v3.0.0`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/tree/v3.0.0) | [`9726426`](https://github.com/sjinks/setup-wordpress-test-library/commit/9726426f2a40656274560a0394718177f8adb424) | [`HARDENING.md`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/blob/v3.0.0/HARDENING.md) |
 | v3.1.0 | [`v3.1.0`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/tree/v3.1.0) | [`f16013c`](https://github.com/sjinks/setup-wordpress-test-library/commit/f16013cfa7cf0d83edd84b989a6401f7733db204) | [`HARDENING.md`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/blob/v3.1.0/HARDENING.md) |
+| v3.1.1 | [`v3.1.1`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/tree/v3.1.1) | [`bb68ff8`](https://github.com/sjinks/setup-wordpress-test-library/commit/bb68ff8d3009843095ecaef40398b9ee5c36923c) | [`HARDENING.md`](https://github.com/chainguard-actions/sjinks-setup-wordpress-test-library/blob/v3.1.1/HARDENING.md) |
 
 ## Privacy
 
