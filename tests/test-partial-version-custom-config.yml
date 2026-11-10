@@ -1,0 +1,55 @@
+name: Test partial version with custom dir and DB settings
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure subversion is installed and create target dir
+        run: |
+          if ! command -v svn >/dev/null 2>&1; then
+            SUDO=""
+            if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
+            $SUDO apt-get update -y
+            $SUDO apt-get install -y subversion
+          fi
+          rm -rf /tmp/wptl-custom
+          mkdir -p /tmp/wptl-custom
+      - id: action
+        uses: .
+        with:
+          version: 6.4.x
+          dir: /tmp/wptl-custom
+          db_user: myuser
+          db_password: s3cretpw
+          db_name: mydb_test
+          db_host: db.example.local
+      - name: Assert wp_version resolved to 6.4 branch
+        env:
+          ACTUAL: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "actual: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -qE '^6\.4(\.[0-9]+)?$'; then
+            echo "FAIL: expected 6.4.x version"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert config uses custom settings
+        run: |
+          D=/tmp/wptl-custom
+          echo "WP_TESTS_DIR=$WP_TESTS_DIR"
+          [ "$WP_TESTS_DIR" = "$D/wordpress-tests-lib" ] || { echo "FAIL: WP_TESTS_DIR"; exit 1; }
+          [ -f "$D/wordpress/wp-includes/version.php" ] || { echo "FAIL: wordpress missing"; exit 1; }
+          CFG="$D/wordpress-tests-lib/wp-tests-config.php"
+          [ -f "$CFG" ] || { echo "FAIL: config missing"; exit 1; }
+          grep -E "DB_(NAME|USER|PASSWORD|HOST)|ABSPATH" "$CFG"
+          for s in mydb_test myuser s3cretpw db.example.local "'$D/wordpress/'"; do
+            grep -qF "$s" "$CFG" || { echo "FAIL: '$s' not found in config"; exit 1; }
+          done
+          if grep -q "youremptytestdbnamehere\|yourusernamehere\|yourpasswordhere" "$CFG"; then
+            echo "FAIL: placeholders not replaced"
+            exit 1
+          fi
+          grep -q "\$wp_version = '6\.4" "$D/wordpress/wp-includes/version.php" || { echo "FAIL: wrong installed version"; exit 1; }
+          echo "PASS"

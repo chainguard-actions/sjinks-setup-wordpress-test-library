@@ -1,0 +1,64 @@
+name: Test basic usage (latest)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure subversion is installed
+        run: |
+          if ! command -v svn >/dev/null 2>&1; then
+            SUDO=""
+            if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
+            $SUDO apt-get update -y
+            $SUDO apt-get install -y subversion
+          fi
+          svn --version --quiet
+      - id: action
+        uses: .
+      - name: Assert wp_version output
+        env:
+          ACTUAL: ${{ steps.action.outputs.wp_version }}
+        run: |
+          echo "actual: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "FAIL: expected a numeric WordPress version"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert files installed in /tmp
+        run: |
+          echo "WP_TESTS_DIR=$WP_TESTS_DIR"
+          if [ "$WP_TESTS_DIR" != "/tmp/wordpress-tests-lib" ]; then
+            echo "FAIL: WP_TESTS_DIR not set correctly"
+            exit 1
+          fi
+          for f in /tmp/wordpress/wp-includes/version.php \
+                   /tmp/wordpress-tests-lib/wp-tests-config.php \
+                   /tmp/wordpress-tests-lib/wp-tests-config-sample.php \
+                   /tmp/wordpress-tests-lib/includes/bootstrap.php; do
+            if [ ! -f "$f" ]; then
+              echo "FAIL: missing $f"
+              exit 1
+            fi
+          done
+          if [ -e /tmp/wordpress.zip ]; then
+            echo "FAIL: wordpress.zip should have been removed"
+            exit 1
+          fi
+          CFG=/tmp/wordpress-tests-lib/wp-tests-config.php
+          grep -q "wordpress_test" "$CFG" || { echo "FAIL: db_name default missing"; exit 1; }
+          grep -q "127.0.0.1" "$CFG" || { echo "FAIL: db_host default missing"; exit 1; }
+          grep -q "'/tmp/wordpress/'" "$CFG" || { echo "FAIL: ABSPATH not rewritten"; exit 1; }
+          echo "PASS"
+      - name: Assert installed version matches output
+        env:
+          WPV: ${{ steps.action.outputs.wp_version }}
+        run: |
+          grep "\$wp_version" /tmp/wordpress/wp-includes/version.php
+          if ! grep -qF "wp_version = '$WPV'" /tmp/wordpress/wp-includes/version.php; then
+            echo "FAIL: version.php does not match $WPV"
+            exit 1
+          fi
+          echo "PASS"
